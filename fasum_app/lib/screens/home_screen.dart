@@ -1,29 +1,21 @@
-import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fasum_app/screens/add_post_screen.dart';
+import 'package:fasum_app/screens/detail_screen.dart';
 import 'package:fasum_app/screens/sign_in_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-  // Future<void> signOut(context) async {
-  //   await FirebaseAuth.instance.signOut();
-  //   Navigator.of(context).pushReplacement(
-  //     MaterialPageRoute(builder: (context) => const SignInScreen()),
-  //   );
-  // }
 
+  @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   String? selectedCategory;
-
   List<String> categories = [
     'Jalan Rusak',
     'Marka Pudar',
@@ -44,9 +36,11 @@ class _HomeScreenState extends State<HomeScreen> {
     'Lainnya',
   ];
 
+  // Format time for the display
   String formatTime(DateTime dateTime) {
     final now = DateTime.now();
     final diff = now.difference(dateTime);
+
     if (diff.inSeconds < 60) {
       return '${diff.inSeconds} secs ago';
     } else if (diff.inMinutes < 60) {
@@ -60,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Sign out user from Firebase
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
@@ -70,13 +65,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Show category filter in a bottom sheet
   void _showCategoryFilter() async {
-    final result = await showModalBottomSheet<String>(
+    final result = await showModalBottomSheet<String?>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ), //RoundedRectangleBorder
+      ),
       builder: (context) {
         return SafeArea(
           child: SizedBox(
@@ -99,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         : null,
                     onTap: () => Navigator.pop(context, category),
                   ),
-                )
+                ),
               ],
             ),
           ),
@@ -109,18 +105,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (result != null) {
       setState(() {
-        selectedCategory =
-            result; //set kategori yang dipilih atau null untuk semua
+        selectedCategory = result; // Set selected category
       });
     } else {
-      // jika result adalah null, berarti memilih semua kategori
       setState(() {
         selectedCategory =
-            null; // reset ke null untuk menampilkan semua kategori
+            null; // Reset to null if "Semua Kategori" is selected
       });
     }
   }
 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -133,21 +128,23 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
+          // Filter button to show category filter
           IconButton(
             onPressed: _showCategoryFilter,
             icon: const Icon(Icons.filter_list),
             tooltip: 'Filter Kategori',
           ),
+          // Logout button
           IconButton(
-            onPressed: () {
-              signOut();
-            },
+            onPressed: signOut,
             icon: const Icon(Icons.logout),
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {},
+        onRefresh: () async {
+          setState(() {});
+        },
         child: StreamBuilder(
           stream: FirebaseFirestore.instance
               .collection('posts')
@@ -157,16 +154,18 @@ class _HomeScreenState extends State<HomeScreen> {
             if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
+
             final posts = snapshot.data!.docs.where((doc) {
               final data = doc.data();
               final category = data['category'] ?? 'Lainnya';
               return selectedCategory == null || selectedCategory == category;
             }).toList();
+
             if (posts.isEmpty) {
               return const Center(
-                child: Text("Tidak ada laporan untuk kategori ini."),
-              );
+                  child: Text("Tidak ada laporan untuk kategori ini."));
             }
+
             return ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount: posts.length,
@@ -184,7 +183,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     'fasum-image-${createdAt.millisecondsSinceEpoch}';
 
                 return InkWell(
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DetailScreen(
+                          imageBase64: imageBase64,
+                          description: description ?? '',
+                          createdAt: createdAt,
+                          fullName: fullName,
+                          latitude: latitude,
+                          longitude: longitude,
+                          category: category,
+                          heroTag: heroTag,
+                        ),
+                      ),
+                    );
+                  },
                   child: Card(
                     elevation: 1,
                     color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -196,11 +211,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Display image if exists
                         if (imageBase64 != null)
                           ClipRRect(
                             borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(10),
-                            ),
+                                top: Radius.circular(10)),
                             child: Hero(
                               tag: heroTag,
                               child: Image.memory(
@@ -213,9 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
+                              horizontal: 16, vertical: 8),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -254,9 +267,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (context) => AddPostScreen()));
+          Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const AddPostScreen()));
         },
         child: const Icon(Icons.add),
       ),
